@@ -1,0 +1,214 @@
+import random
+import copy
+
+class Tic_Tac_Toe:
+    def __init__(self):
+        self.board_state = ['_',' ','_',' ','_','\n','_',' ','_',' ','_','\n','_',' ','_',' ','_','\n']
+        self.player = 'X'
+    def allowed_actions(self,board):
+        return [int((index+2)/2) for index in range(len(board)) if board[index]=='_']
+    def take_action(self,action,board):
+        if(board[2*action-2] == '_' and self.is_winner(board) == None):
+            board[2*action-2] = self.player
+            return self.is_winner(board)
+        else:
+            #print("Take action: ",action)
+            print("Invalid Action")
+    def is_winner(self,board):
+        if( board[2*1-2] == board[2*2-2] == board[2*3-2] == self.player or
+            board[2*4-2] == board[2*5-2] == board[2*6-2] == self.player or
+            board[2*7-2] == board[2*8-2] == board[2*9-2] == self.player or
+            board[2*1-2] == board[2*4-2] == board[2*7-2] == self.player or
+            board[2*2-2] == board[2*5-2] == board[2*8-2] == self.player or
+            board[2*3-2] == board[2*6-2] == board[2*9-2] == self.player or
+            board[2*1-2] == board[2*5-2] == board[2*9-2] == self.player or
+            board[2*3-2] == board[2*5-2] == board[2*7-2] == self.player ):
+            winner = self.player
+        else:
+            winner = None
+        return winner
+    def turn(self,winner):
+        if(winner != None):
+            self.player = None
+        else:
+            if(self.player == 'X'):
+                self.player = 'O'
+            elif(self.player == 'O'):
+                self.player = 'X'
+        
+    def print_board(self,board):
+        return ''.join(board)
+
+class Agent:
+    def __init__(self,GameClass,epsilon,gamma):
+        self.state_values = dict()
+        self.simulate_board = []
+        self.GameClass = GameClass
+        #self.player = player
+        self.epsilon = epsilon
+        self.gamma = gamma
+    def train(self):
+        for i in range(40000):
+            self.run_episode()
+    def run_episode(self):
+        winner = None
+        new_game = self.GameClass()
+        while(winner == None):
+            winner = self.update_state_value(new_game.board_state,new_game)
+            #print("Winner: ",winner)
+        #print(new_game.print_board(new_game.board_state))
+    def state_from_action(self,action,new_game):
+        self.simulate_action(action,new_game)
+        return new_game.print_board(self.simulate_board)
+        #new_game.print_board(board)[:2*action-2]+new_game.player+new_game.print_board(board)[2*action-1:]
+    def action_from_state(self,state,board):
+        for index in range(len(board)):
+                if(board[index] != state[index]):
+                        return (index+2)/2
+    def select_next_action(self,board,new_game):
+        allowed_actions = new_game.allowed_actions(board)
+        #print("Board State: ",new_game.print_board(new_game.board_state))
+        #print("Allowed Actions: ",allowed_actions)
+        if(allowed_actions ==[]):
+            return None
+        #elif(para == 1):
+        else:
+            r = random.random()
+            if(r < self.epsilon):
+                choice = random.choice(allowed_actions)
+                #print("Epsilon: ", choice)
+                return choice
+            else:
+                selected_actions = []
+                allowed_states = []
+                allowed_values = []
+                for action in allowed_actions:
+                    state = self.state_from_action(action,new_game)
+                    self.state_values[state] = self.state_values.get(state,0.0)
+                    allowed_states.append(state)
+                    allowed_values.append(self.state_values[state])
+                if(new_game.player == 'X'):
+                    for index in range(len(allowed_values)):
+                        if(allowed_values[index] == max(allowed_values)):
+                            selected_actions.append(int(self.action_from_state(allowed_states[index],board)))
+                elif(new_game.player == 'O'):
+                    for index in range(len(allowed_values)):
+                        if(allowed_values[index] == min(allowed_values)):
+                            selected_actions.append(int(self.action_from_state(allowed_states[index],board)))
+                choice = random.choice(selected_actions)
+                #print("No epsilon: ",choice)
+                return choice
+    def select_best_action(self,board,new_game):
+        allowed_actions = new_game.allowed_actions(board)
+        if(allowed_actions ==[]):
+            return None
+        else:
+            selected_actions = []
+            allowed_states = []
+            allowed_values = []
+            for action in allowed_actions:
+                state = self.state_from_action(action,new_game)
+                self.state_values[state] = self.state_values.get(state,0.0)
+                allowed_states.append(state)
+                allowed_values.append(self.state_values[state])
+            if(new_game.player == 'X'):
+                for index in range(len(allowed_values)):
+                    if(allowed_values[index] == max(allowed_values)):
+                        selected_actions.append(int(self.action_from_state(allowed_states[index],board)))
+            elif(new_game.player == 'O'):
+                for index in range(len(allowed_values)):
+                    if(allowed_values[index] == min(allowed_values)):
+                        selected_actions.append(int(self.action_from_state(allowed_states[index],board)))
+            choice = random.choice(selected_actions)
+        #print("No epsilon: ",choice)
+        return choice  
+    def simulate_action(self,action,new_game):
+        self.simulate_board = copy.deepcopy(new_game.board_state)
+        new_game.take_action(action,self.simulate_board)
+        #print("Simulate Board: ",self.simulate_board)
+    def update_state_value(self,board,new_game):
+        state = new_game.print_board(board)
+        action = self.select_next_action(board,new_game)
+        best_action = self.select_best_action(board,new_game)
+        winner = new_game.is_winner(board)
+        reward = self.get_reward(winner)
+        if(action == None and winner == None):
+            winner = 'N'
+            reward = self.get_reward(winner)
+            self.state_values[state] = reward
+        elif(winner != None):
+            self.state_values[state] = reward
+        else:
+            self.simulate_board = copy.deepcopy(new_game.board_state)
+            #print("Action: ",action, "Player: ",new_game.player)
+            #print("Best_Action",best_action, "Player: ",new_game.player)
+            winner = new_game.take_action(action,new_game.board_state)
+            best_winner = new_game.take_action(best_action,self.simulate_board)
+            new_game.turn(winner)
+            #print(board)
+            next_state = new_game.print_board(self.simulate_board)
+            if(best_winner != None):
+                self.state_values[next_state] = self.get_reward(best_winner)
+            self.state_values[state] =  reward + self.gamma*self.state_values.get(next_state,0.0)
+        return winner
+    def get_reward(self,winner):
+        if(winner == None):
+            return 0
+        else:
+            if(winner == 'X'):
+                return 15
+            elif(winner == 'N'):
+                return 5
+            else:
+                return -5
+
+#t = Tic_Tac_Toe()
+'''t.take_action(1,t.board_state)
+t.take_action(2,t.board_state)
+t.take_action(3,t.board_state)
+t.take_action(4,t.board_state)
+t.take_action(5,t.board_state)
+t.take_action(6,t.board_state)
+t.take_action(7,t.board_state)
+t.take_action(8,t.board_state)
+t.take_action(9,t.board_state)
+t.allowed_actions()
+'''
+#print(t.print_board(t.board_state))
+a = Agent(Tic_Tac_Toe,0.4, 0.9)
+a.train()
+#print("Winner: ",a.simulate_action(6,t))
+#a.update_state_value(t.board_state,t)
+print("State_values: ", a.state_values.values())
+#a.update_state_value(t.board_state,t)
+#print("State_values: ", a.state_values)
+#print(t.print_board(a.simulate_board))
+'''act = _a.select_next_action(t.board_state,t)
+t.take_action(act,t.board_state)
+for action in t.allowed_actions(t.board_state):
+	state = _a.state_from_action(action,t)
+	print(_a.state_values[state])
+'''
+              
+_a = Agent(Tic_Tac_Toe,0.00,0.9)
+_a.state_values = a.state_values
+for count in range(10):
+    winner = None
+    new_game = _a.GameClass()
+    while(winner == None):
+        print("\nAgent's turn: ")
+        action = _a.select_next_action(new_game.board_state,new_game)
+        if(new_game.allowed_actions(new_game.board_state) != []):
+            new_game.take_action(action,new_game.board_state)
+            winner = new_game.is_winner(new_game.board_state)
+            new_game.turn(winner)
+            print(new_game.print_board(new_game.board_state))
+            if(winner == None and new_game.allowed_actions(new_game.board_state) != []):
+                action = int(input("\nYour turn: "))
+                new_game.take_action(action,new_game.board_state)
+                winner = new_game.is_winner(new_game.board_state)
+                new_game.turn(winner)
+                print(new_game.print_board(new_game.board_state))
+        else:
+            winner = 'N'
+    print("Winner: ",winner)
